@@ -1,0 +1,1356 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/L.Control.Locate.min.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet-search.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <link rel="stylesheet" href="css/leaflet-measure.css">
+        <style>
+        html, body, #map {
+            width: 100%;
+            height: 100%;
+            padding: 0;
+            margin: 0;
+        }
+        </style>
+        <title></title>
+    </head>
+    <body>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/L.Control.Locate.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="js/leaflet-measure.js"></script>
+        <script src="js/leaflet-search.js"></script>
+        <script src="data/TalhesSassapo_1.js"></script>
+        <script src="data/PontosSassapo_2.js"></script>
+        <script src="data/TalhesPivBarraVelha_3.js"></script>
+        <script src="data/PontosPivsBarraVelha_4.js"></script>
+        <script src="data/TalhoesSantaRosa_5.js"></script>
+        <script src="data/PontosSantaRosa_6.js"></script>
+        <script src="data/TalhoesBarraVelhacalcinhas_7.js"></script>
+        <script src="data/PontosBarraVelhacalcinha_8.js"></script>
+        <script src="data/TalhesMizoteIV_9.js"></script>
+        <script src="data/PontosMizoteIV_10.js"></script>
+        <script src="data/TalhesEldorado_11.js"></script>
+        <script src="data/PontosEldorado_12.js"></script>
+        <script src="data/TalhesFazSantaPaula_13.js"></script>
+        <script src="data/PontosFazSantaPaula_14.js"></script>
+        <script>
+        var highlightLayer;
+        function highlightFeature(e) {
+            highlightLayer = e.target;
+
+            if (e.target.feature.geometry.type === 'LineString' || e.target.feature.geometry.type === 'MultiLineString') {
+              highlightLayer.setStyle({
+                color: 'rgba(255, 255, 0, 1.00)',
+              });
+            } else {
+              highlightLayer.setStyle({
+                fillColor: 'rgba(255, 255, 0, 1.00)',
+                fillOpacity: 1
+              });
+            }
+            highlightLayer.openPopup();
+        }
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        })
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/tomchadwin/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+        var measureControl = new L.Control.Measure({
+            position: 'topleft',
+            primaryLengthUnit: 'meters',
+            secondaryLengthUnit: 'kilometers',
+            primaryAreaUnit: 'sqmeters',
+            secondaryAreaUnit: 'hectares'
+        });
+        measureControl.addTo(map);
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].innerHTML = '';
+        document.getElementsByClassName('leaflet-control-measure-toggle')[0].className += ' fas fa-ruler';
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+            if (bounds_group.getLayers().length) {
+                map.fitBounds(bounds_group.getBounds());
+            }
+        }
+        map.createPane('pane_GoogleSatellite_0');
+        map.getPane('pane_GoogleSatellite_0').style.zIndex = 400;
+        var layer_GoogleSatellite_0 = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', {
+            pane: 'pane_GoogleSatellite_0',
+            opacity: 1.0,
+            attribution: '<a href="https://www.google.at/permissions/geoguidelines/attr-guide.html">Map data ©2015 Google</a>',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 20
+        });
+        layer_GoogleSatellite_0;
+        map.addLayer(layer_GoogleSatellite_0);
+        function pop_TalhesSassapo_1(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['color'] !== null ? autolinker.link(String(feature.properties['color']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Sassapao'] !== null ? autolinker.link(String(feature.properties['Sassapao']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_TalhesSassapo_1_0() {
+            return {
+                pane: 'pane_TalhesSassapo_1',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(114,155,111,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_TalhesSassapo_1');
+        map.getPane('pane_TalhesSassapo_1').style.zIndex = 401;
+        map.getPane('pane_TalhesSassapo_1').style['mix-blend-mode'] = 'normal';
+        var layer_TalhesSassapo_1 = new L.geoJson(json_TalhesSassapo_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_TalhesSassapo_1',
+            layerName: 'layer_TalhesSassapo_1',
+            pane: 'pane_TalhesSassapo_1',
+            onEachFeature: pop_TalhesSassapo_1,
+            style: style_TalhesSassapo_1_0,
+        });
+        bounds_group.addLayer(layer_TalhesSassapo_1);
+        map.addLayer(layer_TalhesSassapo_1);
+        function pop_PontosSassapo_2(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PontosSassapo_2_0() {
+            return {
+                pane: 'pane_PontosSassapo_2',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_PontosSassapo_2');
+        map.getPane('pane_PontosSassapo_2').style.zIndex = 402;
+        map.getPane('pane_PontosSassapo_2').style['mix-blend-mode'] = 'normal';
+        var layer_PontosSassapo_2 = new L.geoJson(json_PontosSassapo_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PontosSassapo_2',
+            layerName: 'layer_PontosSassapo_2',
+            pane: 'pane_PontosSassapo_2',
+            onEachFeature: pop_PontosSassapo_2,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_PontosSassapo_2_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_PontosSassapo_2);
+        map.addLayer(layer_PontosSassapo_2);
+        function pop_TalhesPivBarraVelha_3(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['color'] !== null ? autolinker.link(String(feature.properties['color']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Barra Velh'] !== null ? autolinker.link(String(feature.properties['Barra Velh']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_TalhesPivBarraVelha_3_0() {
+            return {
+                pane: 'pane_TalhesPivBarraVelha_3',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(190,178,151,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_TalhesPivBarraVelha_3');
+        map.getPane('pane_TalhesPivBarraVelha_3').style.zIndex = 403;
+        map.getPane('pane_TalhesPivBarraVelha_3').style['mix-blend-mode'] = 'normal';
+        var layer_TalhesPivBarraVelha_3 = new L.geoJson(json_TalhesPivBarraVelha_3, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_TalhesPivBarraVelha_3',
+            layerName: 'layer_TalhesPivBarraVelha_3',
+            pane: 'pane_TalhesPivBarraVelha_3',
+            onEachFeature: pop_TalhesPivBarraVelha_3,
+            style: style_TalhesPivBarraVelha_3_0,
+        });
+        bounds_group.addLayer(layer_TalhesPivBarraVelha_3);
+        map.addLayer(layer_TalhesPivBarraVelha_3);
+        function pop_PontosPivsBarraVelha_4(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PontosPivsBarraVelha_4_0() {
+            return {
+                pane: 'pane_PontosPivsBarraVelha_4',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_PontosPivsBarraVelha_4');
+        map.getPane('pane_PontosPivsBarraVelha_4').style.zIndex = 404;
+        map.getPane('pane_PontosPivsBarraVelha_4').style['mix-blend-mode'] = 'normal';
+        var layer_PontosPivsBarraVelha_4 = new L.geoJson(json_PontosPivsBarraVelha_4, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PontosPivsBarraVelha_4',
+            layerName: 'layer_PontosPivsBarraVelha_4',
+            pane: 'pane_PontosPivsBarraVelha_4',
+            onEachFeature: pop_PontosPivsBarraVelha_4,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_PontosPivsBarraVelha_4_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_PontosPivsBarraVelha_4);
+        map.addLayer(layer_PontosPivsBarraVelha_4);
+        function pop_TalhoesSantaRosa_5(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['color'] !== null ? autolinker.link(String(feature.properties['color']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TH STR'] !== null ? autolinker.link(String(feature.properties['TH STR']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_TalhoesSantaRosa_5_0() {
+            return {
+                pane: 'pane_TalhoesSantaRosa_5',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(133,182,111,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_TalhoesSantaRosa_5');
+        map.getPane('pane_TalhoesSantaRosa_5').style.zIndex = 405;
+        map.getPane('pane_TalhoesSantaRosa_5').style['mix-blend-mode'] = 'normal';
+        var layer_TalhoesSantaRosa_5 = new L.geoJson(json_TalhoesSantaRosa_5, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_TalhoesSantaRosa_5',
+            layerName: 'layer_TalhoesSantaRosa_5',
+            pane: 'pane_TalhoesSantaRosa_5',
+            onEachFeature: pop_TalhoesSantaRosa_5,
+            style: style_TalhoesSantaRosa_5_0,
+        });
+        bounds_group.addLayer(layer_TalhoesSantaRosa_5);
+        map.addLayer(layer_TalhoesSantaRosa_5);
+        function pop_PontosSantaRosa_6(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['fid'] !== null ? autolinker.link(String(feature.properties['fid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PontosSantaRosa_6_0() {
+            return {
+                pane: 'pane_PontosSantaRosa_6',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_PontosSantaRosa_6');
+        map.getPane('pane_PontosSantaRosa_6').style.zIndex = 406;
+        map.getPane('pane_PontosSantaRosa_6').style['mix-blend-mode'] = 'normal';
+        var layer_PontosSantaRosa_6 = new L.geoJson(json_PontosSantaRosa_6, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PontosSantaRosa_6',
+            layerName: 'layer_PontosSantaRosa_6',
+            pane: 'pane_PontosSantaRosa_6',
+            onEachFeature: pop_PontosSantaRosa_6,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_PontosSantaRosa_6_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_PontosSantaRosa_6);
+        map.addLayer(layer_PontosSantaRosa_6);
+        function pop_TalhoesBarraVelhacalcinhas_7(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['color'] !== null ? autolinker.link(String(feature.properties['color']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Barra Velh'] !== null ? autolinker.link(String(feature.properties['Barra Velh']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_TalhoesBarraVelhacalcinhas_7_0() {
+            return {
+                pane: 'pane_TalhoesBarraVelhacalcinhas_7',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(232,113,141,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_TalhoesBarraVelhacalcinhas_7');
+        map.getPane('pane_TalhoesBarraVelhacalcinhas_7').style.zIndex = 407;
+        map.getPane('pane_TalhoesBarraVelhacalcinhas_7').style['mix-blend-mode'] = 'normal';
+        var layer_TalhoesBarraVelhacalcinhas_7 = new L.geoJson(json_TalhoesBarraVelhacalcinhas_7, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_TalhoesBarraVelhacalcinhas_7',
+            layerName: 'layer_TalhoesBarraVelhacalcinhas_7',
+            pane: 'pane_TalhoesBarraVelhacalcinhas_7',
+            onEachFeature: pop_TalhoesBarraVelhacalcinhas_7,
+            style: style_TalhoesBarraVelhacalcinhas_7_0,
+        });
+        bounds_group.addLayer(layer_TalhoesBarraVelhacalcinhas_7);
+        map.addLayer(layer_TalhoesBarraVelhacalcinhas_7);
+        function pop_PontosBarraVelhacalcinha_8(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PontosBarraVelhacalcinha_8_0() {
+            return {
+                pane: 'pane_PontosBarraVelhacalcinha_8',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_PontosBarraVelhacalcinha_8');
+        map.getPane('pane_PontosBarraVelhacalcinha_8').style.zIndex = 408;
+        map.getPane('pane_PontosBarraVelhacalcinha_8').style['mix-blend-mode'] = 'normal';
+        var layer_PontosBarraVelhacalcinha_8 = new L.geoJson(json_PontosBarraVelhacalcinha_8, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PontosBarraVelhacalcinha_8',
+            layerName: 'layer_PontosBarraVelhacalcinha_8',
+            pane: 'pane_PontosBarraVelhacalcinha_8',
+            onEachFeature: pop_PontosBarraVelhacalcinha_8,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_PontosBarraVelhacalcinha_8_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_PontosBarraVelhacalcinha_8);
+        map.addLayer(layer_PontosBarraVelhacalcinha_8);
+        function pop_TalhesMizoteIV_9(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['color'] !== null ? autolinker.link(String(feature.properties['color']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Mizote I.V'] !== null ? autolinker.link(String(feature.properties['Mizote I.V']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_TalhesMizoteIV_9_0() {
+            return {
+                pane: 'pane_TalhesMizoteIV_9',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(225,89,137,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_TalhesMizoteIV_9');
+        map.getPane('pane_TalhesMizoteIV_9').style.zIndex = 409;
+        map.getPane('pane_TalhesMizoteIV_9').style['mix-blend-mode'] = 'normal';
+        var layer_TalhesMizoteIV_9 = new L.geoJson(json_TalhesMizoteIV_9, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_TalhesMizoteIV_9',
+            layerName: 'layer_TalhesMizoteIV_9',
+            pane: 'pane_TalhesMizoteIV_9',
+            onEachFeature: pop_TalhesMizoteIV_9,
+            style: style_TalhesMizoteIV_9_0,
+        });
+        bounds_group.addLayer(layer_TalhesMizoteIV_9);
+        map.addLayer(layer_TalhesMizoteIV_9);
+        function pop_PontosMizoteIV_10(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PontosMizoteIV_10_0() {
+            return {
+                pane: 'pane_PontosMizoteIV_10',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_PontosMizoteIV_10');
+        map.getPane('pane_PontosMizoteIV_10').style.zIndex = 410;
+        map.getPane('pane_PontosMizoteIV_10').style['mix-blend-mode'] = 'normal';
+        var layer_PontosMizoteIV_10 = new L.geoJson(json_PontosMizoteIV_10, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PontosMizoteIV_10',
+            layerName: 'layer_PontosMizoteIV_10',
+            pane: 'pane_PontosMizoteIV_10',
+            onEachFeature: pop_PontosMizoteIV_10,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_PontosMizoteIV_10_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_PontosMizoteIV_10);
+        map.addLayer(layer_PontosMizoteIV_10);
+        function pop_TalhesEldorado_11(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['color'] !== null ? autolinker.link(String(feature.properties['color']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">TH Eldorad</th>\
+                        <td>' + (feature.properties['TH Eldorad'] !== null ? autolinker.link(String(feature.properties['TH Eldorad']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_TalhesEldorado_11_0() {
+            return {
+                pane: 'pane_TalhesEldorado_11',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(232,113,141,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_TalhesEldorado_11');
+        map.getPane('pane_TalhesEldorado_11').style.zIndex = 411;
+        map.getPane('pane_TalhesEldorado_11').style['mix-blend-mode'] = 'normal';
+        var layer_TalhesEldorado_11 = new L.geoJson(json_TalhesEldorado_11, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_TalhesEldorado_11',
+            layerName: 'layer_TalhesEldorado_11',
+            pane: 'pane_TalhesEldorado_11',
+            onEachFeature: pop_TalhesEldorado_11,
+            style: style_TalhesEldorado_11_0,
+        });
+        bounds_group.addLayer(layer_TalhesEldorado_11);
+        map.addLayer(layer_TalhesEldorado_11);
+        function pop_PontosEldorado_12(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['id'] !== null ? autolinker.link(String(feature.properties['id']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PontosEldorado_12_0() {
+            return {
+                pane: 'pane_PontosEldorado_12',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_PontosEldorado_12');
+        map.getPane('pane_PontosEldorado_12').style.zIndex = 412;
+        map.getPane('pane_PontosEldorado_12').style['mix-blend-mode'] = 'normal';
+        var layer_PontosEldorado_12 = new L.geoJson(json_PontosEldorado_12, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PontosEldorado_12',
+            layerName: 'layer_PontosEldorado_12',
+            pane: 'pane_PontosEldorado_12',
+            onEachFeature: pop_PontosEldorado_12,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_PontosEldorado_12_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_PontosEldorado_12);
+        map.addLayer(layer_PontosEldorado_12);
+        function pop_TalhesFazSantaPaula_13(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['color'] !== null ? autolinker.link(String(feature.properties['color']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['TH STP'] !== null ? autolinker.link(String(feature.properties['TH STP']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_TalhesFazSantaPaula_13_0() {
+            return {
+                pane: 'pane_TalhesFazSantaPaula_13',
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(141,90,153,0.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_TalhesFazSantaPaula_13');
+        map.getPane('pane_TalhesFazSantaPaula_13').style.zIndex = 413;
+        map.getPane('pane_TalhesFazSantaPaula_13').style['mix-blend-mode'] = 'normal';
+        var layer_TalhesFazSantaPaula_13 = new L.geoJson(json_TalhesFazSantaPaula_13, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_TalhesFazSantaPaula_13',
+            layerName: 'layer_TalhesFazSantaPaula_13',
+            pane: 'pane_TalhesFazSantaPaula_13',
+            onEachFeature: pop_TalhesFazSantaPaula_13,
+            style: style_TalhesFazSantaPaula_13_0,
+        });
+        bounds_group.addLayer(layer_TalhesFazSantaPaula_13);
+        map.addLayer(layer_TalhesFazSantaPaula_13);
+        function pop_PontosFazSantaPaula_14(feature, layer) {
+            layer.on({
+                mouseout: function(e) {
+                    for (var i in e.target._eventParents) {
+                        if (typeof e.target._eventParents[i].resetStyle === 'function') {
+                            e.target._eventParents[i].resetStyle(e.target);
+                        }
+                    }
+                    if (typeof layer.closePopup == 'function') {
+                        layer.closePopup();
+                    } else {
+                        layer.eachLayer(function(feature){
+                            feature.closePopup()
+                        });
+                    }
+                },
+                mouseover: highlightFeature,
+            });
+            var popupContent = '<table>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['fid'] !== null ? autolinker.link(String(feature.properties['fid']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_PontosFazSantaPaula_14_0() {
+            return {
+                pane: 'pane_PontosFazSantaPaula_14',
+                radius: 4.0,
+                opacity: 1,
+                color: 'rgba(35,35,35,1.0)',
+                dashArray: '',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1,
+                fill: true,
+                fillOpacity: 1,
+                fillColor: 'rgba(255,255,255,1.0)',
+                interactive: true,
+            }
+        }
+        map.createPane('pane_PontosFazSantaPaula_14');
+        map.getPane('pane_PontosFazSantaPaula_14').style.zIndex = 414;
+        map.getPane('pane_PontosFazSantaPaula_14').style['mix-blend-mode'] = 'normal';
+        var layer_PontosFazSantaPaula_14 = new L.geoJson(json_PontosFazSantaPaula_14, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_PontosFazSantaPaula_14',
+            layerName: 'layer_PontosFazSantaPaula_14',
+            pane: 'pane_PontosFazSantaPaula_14',
+            onEachFeature: pop_PontosFazSantaPaula_14,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.circleMarker(latlng, style_PontosFazSantaPaula_14_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_PontosFazSantaPaula_14);
+        map.addLayer(layer_PontosFazSantaPaula_14);
+        const url = {"Nominatim OSM": "https://nominatim.openstreetmap.org/search?format=geojson&addressdetails=1&",
+        "France BAN": "https://api-adresse.data.gouv.fr/search/?"}
+        var photonControl = L.control.photon({
+            url: url["Nominatim OSM"],
+            feedbackLabel: '',
+            position: 'topleft',
+            includePosition: true,
+            initial: true,
+            // resultsHandler: myHandler,
+        }).addTo(map);
+        photonControl._container.childNodes[0].style.borderRadius="10px"
+        // Create a variable to store the geoJSON data
+        var x = null;
+        // Create a variable to store the marker
+        var marker = null;
+        // Add an event listener to the Photon control to create a marker from the returned geoJSON data
+        var z = null;
+        photonControl.on('selected', function(e) {
+            console.log(photonControl.search.resultsContainer);
+            if (x != null) {
+                map.removeLayer(obj3.marker);
+                map.removeLayer(x);
+            }
+            obj2.gcd = e.choice;
+            x = L.geoJSON(obj2.gcd).addTo(map);
+            var label = typeof obj2.gcd.properties.label === 'undefined' ? obj2.gcd.properties.display_name : obj2.gcd.properties.label;
+            obj3.marker = L.marker(x.getLayers()[0].getLatLng()).bindPopup(label).addTo(map);
+            map.setView(x.getLayers()[0].getLatLng(), 17);
+            z = typeof e.choice.properties.label === 'undefined'? e.choice.properties.display_name : e.choice.properties.label;
+            console.log(e);
+            e.target.input.value = z;
+        });
+        var search = document.getElementsByClassName("leaflet-photon leaflet-control")[0];
+        search.classList.add("leaflet-control-search")
+        search.style.display = "flex";
+        search.style.backgroundColor="rgba(255,255,255,0.5)" 
+
+        // Create the new button element
+        var button = document.createElement("div");
+        button.id = "gcd-button-control";
+        button.className = "gcd-gl-btn fa fa-search search-button";
+
+        // Insert the button at the beginning of the search control
+        search.insertBefore(button, search.firstChild);
+        last = search.lastChild;
+        last.style.display = "none";
+        button.addEventListener("click", function (e) {
+            if (last.style.display === "none") {
+                last.style.display = "block";
+            } else {
+                last.style.display = "none";
+            }
+        });
+        var overlaysTree = [
+            {label: '<img src="legend/PontosFazSantaPaula_14.png" /> Pontos Faz. Santa Paula', layer: layer_PontosFazSantaPaula_14},
+            {label: '<img src="legend/TalhesFazSantaPaula_13.png" /> Talhões Faz. Santa Paula', layer: layer_TalhesFazSantaPaula_13},
+            {label: '<img src="legend/PontosEldorado_12.png" /> Pontos Eldorado', layer: layer_PontosEldorado_12},
+            {label: '<img src="legend/TalhesEldorado_11.png" /> Talhões Eldorado', layer: layer_TalhesEldorado_11},
+            {label: '<img src="legend/PontosMizoteIV_10.png" /> Pontos Mizote I.V', layer: layer_PontosMizoteIV_10},
+            {label: '<img src="legend/TalhesMizoteIV_9.png" /> Talhões Mizote IV', layer: layer_TalhesMizoteIV_9},
+            {label: '<img src="legend/PontosBarraVelhacalcinha_8.png" /> Pontos Barra Velha (calcinha)', layer: layer_PontosBarraVelhacalcinha_8},
+            {label: '<img src="legend/TalhoesBarraVelhacalcinhas_7.png" /> Talhoões Barra Velha (calcinhas)', layer: layer_TalhoesBarraVelhacalcinhas_7},
+            {label: '<img src="legend/PontosSantaRosa_6.png" /> Pontos Santa Rosa', layer: layer_PontosSantaRosa_6},
+            {label: '<img src="legend/TalhoesSantaRosa_5.png" /> Talhoes Santa Rosa', layer: layer_TalhoesSantaRosa_5},
+            {label: '<img src="legend/PontosPivsBarraVelha_4.png" /> Pontos Pivôs Barra Velha', layer: layer_PontosPivsBarraVelha_4},
+            {label: '<img src="legend/TalhesPivBarraVelha_3.png" /> Talhões Pivô Barra Velha', layer: layer_TalhesPivBarraVelha_3},
+            {label: '<img src="legend/PontosSassapo_2.png" /> Pontos Sassapão', layer: layer_PontosSassapo_2},
+            {label: '<img src="legend/TalhesSassapo_1.png" /> Talhões Sassapão', layer: layer_TalhesSassapo_1},
+            {label: "Google Satellite", layer: layer_GoogleSatellite_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: true,
+        });
+        lay.addTo(map);
+        setBounds();
+        var i = 0;
+        layer_TalhesSassapo_1.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Sassapao'] !== null?String('<div style="color: #ff7f00; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Sassapao']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_TalhesSassapo_1'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_PontosSassapo_2.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #a6cee3; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_PontosSassapo_2'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_TalhesPivBarraVelha_3.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Barra Velh'] !== null?String('<div style="color: #ff7f00; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Barra Velh']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_TalhesPivBarraVelha_3'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_PontosPivsBarraVelha_4.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #ffffff; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_PontosPivsBarraVelha_4'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_TalhoesSantaRosa_5.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['TH STR'] !== null?String('<div style="color: #ff7f00; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['TH STR']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_TalhoesSantaRosa_5'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_PontosSantaRosa_6.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['fid'] !== null?String('<div style="color: #a6cee3; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['fid']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_PontosSantaRosa_6'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_TalhoesBarraVelhacalcinhas_7.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Barra Velh'] !== null?String('<div style="color: #ff7f00; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Barra Velh']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_TalhoesBarraVelhacalcinhas_7'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_PontosBarraVelhacalcinha_8.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #a6cee3; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_PontosBarraVelhacalcinha_8'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_TalhesMizoteIV_9.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['Mizote I.V'] !== null?String('<div style="color: #ff9e17; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['Mizote I.V']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_TalhesMizoteIV_9'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_PontosMizoteIV_10.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #ffffff; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_PontosMizoteIV_10'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_TalhesEldorado_11.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['TH Eldorad'] !== null?String('<div style="color: #ff9e17; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['TH Eldorad']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_TalhesEldorado_11'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_PontosEldorado_12.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['id'] !== null?String('<div style="color: #ffffff; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['id']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_PontosEldorado_12'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_TalhesFazSantaPaula_13.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['TH STP'] !== null?String('<div style="color: #ff9e17; font-size: 10pt; font-weight: bold; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['TH STP']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_TalhesFazSantaPaula_13'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        var i = 0;
+        layer_PontosFazSantaPaula_14.eachLayer(function(layer) {
+            var context = {
+                feature: layer.feature,
+                variables: {}
+            };
+            layer.bindTooltip((layer.feature.properties['fid'] !== null?String('<div style="color: #a6cee3; font-size: 10pt; font-family: \'Open Sans\', sans-serif;">' + layer.feature.properties['fid']) + '</div>':''), {permanent: true, offset: [-0, -16], className: 'css_PontosFazSantaPaula_14'});
+            labels.push(layer);
+            totalMarkers += 1;
+              layer.added = true;
+              addLabel(layer, i);
+              i++;
+        });
+        map.addControl(new L.Control.Search({
+            layer: layer_TalhesFazSantaPaula_13,
+            initial: false,
+            hideMarkerOnCollapse: true,
+            propertyName: 'TH STP'}));
+        if (typeof url === 'undefined') {
+            document.getElementsByClassName('search-button')[0].className += ' fa fa-binoculars';
+        } else {
+            document.getElementsByClassName('search-button')[1].className += ' fa fa-binoculars';
+        }
+        resetLabels([layer_TalhesSassapo_1,layer_PontosSassapo_2,layer_TalhesPivBarraVelha_3,layer_PontosPivsBarraVelha_4,layer_TalhoesSantaRosa_5,layer_PontosSantaRosa_6,layer_TalhoesBarraVelhacalcinhas_7,layer_PontosBarraVelhacalcinha_8,layer_TalhesMizoteIV_9,layer_PontosMizoteIV_10,layer_TalhesEldorado_11,layer_PontosEldorado_12,layer_TalhesFazSantaPaula_13,layer_PontosFazSantaPaula_14]);
+        map.on("zoomend", function(){
+            resetLabels([layer_TalhesSassapo_1,layer_PontosSassapo_2,layer_TalhesPivBarraVelha_3,layer_PontosPivsBarraVelha_4,layer_TalhoesSantaRosa_5,layer_PontosSantaRosa_6,layer_TalhoesBarraVelhacalcinhas_7,layer_PontosBarraVelhacalcinha_8,layer_TalhesMizoteIV_9,layer_PontosMizoteIV_10,layer_TalhesEldorado_11,layer_PontosEldorado_12,layer_TalhesFazSantaPaula_13,layer_PontosFazSantaPaula_14]);
+        });
+        map.on("layeradd", function(){
+            resetLabels([layer_TalhesSassapo_1,layer_PontosSassapo_2,layer_TalhesPivBarraVelha_3,layer_PontosPivsBarraVelha_4,layer_TalhoesSantaRosa_5,layer_PontosSantaRosa_6,layer_TalhoesBarraVelhacalcinhas_7,layer_PontosBarraVelhacalcinha_8,layer_TalhesMizoteIV_9,layer_PontosMizoteIV_10,layer_TalhesEldorado_11,layer_PontosEldorado_12,layer_TalhesFazSantaPaula_13,layer_PontosFazSantaPaula_14]);
+        });
+        map.on("layerremove", function(){
+            resetLabels([layer_TalhesSassapo_1,layer_PontosSassapo_2,layer_TalhesPivBarraVelha_3,layer_PontosPivsBarraVelha_4,layer_TalhoesSantaRosa_5,layer_PontosSantaRosa_6,layer_TalhoesBarraVelhacalcinhas_7,layer_PontosBarraVelhacalcinha_8,layer_TalhesMizoteIV_9,layer_PontosMizoteIV_10,layer_TalhesEldorado_11,layer_PontosEldorado_12,layer_TalhesFazSantaPaula_13,layer_PontosFazSantaPaula_14]);
+        });
+        </script>        
+    </body>
+</html>
